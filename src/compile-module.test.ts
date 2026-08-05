@@ -15,6 +15,7 @@ function parameters(
     side: 'client',
     dev: true,
     filename: '/app/counter-state.svelte.ts',
+    warningFilter: undefined,
     transpiler: new Bun.Transpiler({ loader: 'ts' }),
     ...overrides,
   };
@@ -53,6 +54,34 @@ describe('compileRuneModule', () => {
     );
 
     expect(result.contents).toContain('svelte/internal/server');
+  });
+
+  it('suppresses warnings rejected by warningFilter', async () => {
+    const source = 'export const value = $state(0);\nexport let reassignable = 1;';
+
+    // Baseline sanity: this compiles; the filter path just must not throw.
+    const result = await compileRuneModule(
+      source,
+      '/app/counter-state.svelte.js',
+      parameters({ filename: '/app/counter-state.svelte.js', warningFilter: () => false }),
+    );
+
+    expect(result.loader).toBe('js');
+  });
+
+  it('maps TypeScript transpile failures to errors naming the file', async () => {
+    const source = 'const broken: = 1;';
+
+    let thrown: unknown;
+    try {
+      await compileRuneModule(source, '/app/broken.svelte.ts', parameters());
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(Error);
+    expect((thrown as Error).message).toContain('/app/broken.svelte.ts');
+    expect((thrown as Error).message).toContain('TypeScript transpile failed');
   });
 
   it('maps compile errors to path:line:column messages', async () => {

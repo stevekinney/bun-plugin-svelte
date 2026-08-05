@@ -67,37 +67,17 @@ describe('sveltePlugin', () => {
     expect(typeof defaultPlugin.setup).toBe('function');
   });
 
-  describe('svelte export condition', () => {
-    it('appends svelte to existing array conditions', () => {
-      const { builder } = stubBuilder({ conditions: ['browser'] });
-      sveltePlugin().setup(builder as any);
-      expect(builder.config!['conditions']).toEqual(['browser', 'svelte']);
-    });
+  it('tolerates the runtime builder having no config at all', () => {
+    const { builder, loads, resolves } = stubBuilder(undefined);
+    expect(() => sveltePlugin().setup(builder as any)).not.toThrow();
+    expect(loads.length).toBe(3);
+    expect(resolves.length).toBe(1);
+  });
 
-    it('normalizes a string condition', () => {
-      const { builder } = stubBuilder({ conditions: 'browser' });
-      sveltePlugin().setup(builder as any);
-      expect(builder.config!['conditions']).toEqual(['browser', 'svelte']);
-    });
-
-    it('creates conditions when none exist', () => {
-      const { builder } = stubBuilder({});
-      sveltePlugin().setup(builder as any);
-      expect(builder.config!['conditions']).toEqual(['svelte']);
-    });
-
-    it('does not duplicate an existing svelte condition', () => {
-      const { builder } = stubBuilder({ conditions: ['svelte'] });
-      sveltePlugin().setup(builder as any);
-      expect(builder.config!['conditions']).toEqual(['svelte']);
-    });
-
-    it('tolerates the runtime builder having no config at all', () => {
-      const { builder, loads, resolves } = stubBuilder(undefined);
-      expect(() => sveltePlugin().setup(builder as any)).not.toThrow();
-      expect(loads.length).toBe(3);
-      expect(resolves.length).toBe(1);
-    });
+  it('does not mutate the build config — the svelte condition must be passed explicitly', () => {
+    const { builder } = stubBuilder({ conditions: ['browser'] });
+    sveltePlugin().setup(builder as any);
+    expect(builder.config!['conditions']).toEqual(['browser']);
   });
 
   describe('dev server hints', () => {
@@ -151,8 +131,12 @@ describe('sveltePlugin', () => {
         /import "(bun-svelte:[^"]+\.css)";/,
       )![1]!;
 
+      // The resolved path is the bare identifier — Bun re-prepends the
+      // namespace for display, so passing the prefixed specifier through
+      // would double it in emitted CSS banners.
+      const bareIdentifier = specifier.slice(`${VIRTUAL_CSS_NAMESPACE}:`.length);
       const resolved = await resolves[0]!.handler({ path: specifier } as any);
-      expect(resolved).toEqual({ path: specifier, namespace: VIRTUAL_CSS_NAMESPACE });
+      expect(resolved).toEqual({ path: bareIdentifier, namespace: VIRTUAL_CSS_NAMESPACE });
 
       const cssHandler = findLoadHandler(
         loads,
@@ -208,6 +192,52 @@ describe('sveltePlugin', () => {
       expect(result.success).toBe(true);
       const javascript = result.outputs.find((output) => output.path.endsWith('.js'));
       expect(await javascript!.text()).toContain('svelte/internal/server');
+    });
+
+    it('resolves packages through an explicit svelte export condition to raw component source', async () => {
+      const result = await Bun.build({
+        entrypoints: [fixture('condition-app/entry.ts')],
+        target: 'browser',
+        conditions: ['svelte'],
+        external: ['svelte', 'svelte/*'],
+        plugins: [sveltePlugin({ generate: 'client', dev: false })],
+        throw: false,
+      });
+
+      expect(result.success).toBe(true);
+      const javascript = await result.outputs.find((output) => output.path.endsWith('.js'))!.text();
+      expect(javascript).toContain('raw-svelte-source-entry');
+      expect(javascript).not.toContain('default-entry-marker');
+    });
+
+    it('bundles a component importing another component and a rune module', async () => {
+      const result = await Bun.build({
+        entrypoints: [fixture('composite.svelte')],
+        target: 'browser',
+        external: ['svelte', 'svelte/*'],
+        plugins: [sveltePlugin({ generate: 'client', dev: false })],
+        throw: false,
+      });
+
+      expect(result.success).toBe(true);
+      const javascript = await result.outputs.find((output) => output.path.endsWith('.js'))!.text();
+      expect(javascript).toContain('createCounter');
+      expect(javascript).toContain('nested');
+      expect(result.outputs.some((output) => output.path.endsWith('.css'))).toBe(true);
+    });
+
+    it("bundles a component with css 'none' without emitting any CSS artifact", async () => {
+      const result = await Bun.build({
+        entrypoints: [fixture('counter.svelte')],
+        target: 'browser',
+        plugins: [sveltePlugin({ generate: 'client', css: 'none', dev: false })],
+        throw: false,
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.outputs.some((output) => output.path.endsWith('.css'))).toBe(false);
+      const javascript = await result.outputs.find((output) => output.path.endsWith('.js'))!.text();
+      expect(javascript).not.toContain('append_styles');
     });
 
     it('bundles a .svelte.ts rune module entrypoint', async () => {

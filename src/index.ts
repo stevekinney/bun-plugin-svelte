@@ -1,4 +1,7 @@
+import { assertBunRuntime } from './errors.js';
 import { sveltePlugin } from './svelte-plugin.js';
+
+assertBunRuntime(globalThis);
 
 export { sveltePlugin } from './svelte-plugin.js';
 export type { CssMode, DevServerHints, GenerationSide, SvelteOptions } from './options.js';

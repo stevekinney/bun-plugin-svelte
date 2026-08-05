@@ -1,7 +1,13 @@
 import { describe, expect, it, spyOn } from 'bun:test';
 import { compile } from 'svelte/compiler';
 
-import { forwardWarnings, isSvelteCompileError, mapCompileError } from './errors.js';
+import {
+  assertBunRuntime,
+  forwardWarnings,
+  isSvelteCompileError,
+  mapCompileError,
+  mapTranspileError,
+} from './errors.js';
 
 function captureCompileError(): unknown {
   try {
@@ -58,6 +64,33 @@ describe('mapCompileError', () => {
     const mapped = mapCompileError('a string', '/app/x.svelte');
     expect(mapped).toBeInstanceOf(Error);
     expect(mapped.message).toBe('a string');
+  });
+});
+
+describe('mapTranspileError', () => {
+  it('prefixes the path and preserves the cause', () => {
+    const original = new Error('Unexpected =');
+
+    const mapped = mapTranspileError(original, '/app/broken.svelte.ts');
+
+    expect(mapped.message).toBe('/app/broken.svelte.ts: TypeScript transpile failed: Unexpected =');
+    expect(mapped.cause).toBe(original);
+  });
+
+  it('stringifies non-Error thrown values', () => {
+    const mapped = mapTranspileError('boom', '/app/broken.svelte.ts');
+
+    expect(mapped.message).toContain('boom');
+  });
+});
+
+describe('assertBunRuntime', () => {
+  it('passes when Bun is present', () => {
+    expect(() => assertBunRuntime(globalThis)).not.toThrow();
+  });
+
+  it('throws a clear error when Bun is missing', () => {
+    expect(() => assertBunRuntime({})).toThrow(/requires the Bun runtime/);
   });
 });
 

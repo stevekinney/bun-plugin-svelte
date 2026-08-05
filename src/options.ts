@@ -1,5 +1,5 @@
 import type { BuildConfig } from 'bun';
-import type { CompileOptions } from 'svelte/compiler';
+import type { CompileOptions, Warning } from 'svelte/compiler';
 
 import { isRecord } from './errors.js';
 
@@ -8,10 +8,12 @@ export type GenerationSide = 'client' | 'server';
 
 /**
  * How component `<style>` blocks are delivered: `'injected'` inlines them into
- * the JS bundle and appends them to the document at runtime; `'external'`
- * extracts them into a virtual CSS module that Bun bundles as a real stylesheet.
+ * the JS bundle and appends them to the document at runtime (and into `head`
+ * during SSR); `'external'` extracts them into a virtual CSS module that Bun
+ * bundles as a real stylesheet; `'none'` compiles scoped classes but discards
+ * the CSS entirely — for libraries that manage stylesheets out of band.
  */
-export type CssMode = 'injected' | 'external';
+export type CssMode = 'injected' | 'external' | 'none';
 
 /**
  * Extra fields Bun's fullstack dev server adds to `onLoad` arguments. They are
@@ -40,7 +42,16 @@ export type SvelteOptions = {
    * output disagree on class names and cannot hydrate each other.
    */
   compileFilename?: (path: string) => string;
-  /** Passed through to `svelte/compiler` for both components and rune modules. */
+  /**
+   * Filter compiler warnings before they are printed: return `false` to
+   * suppress a warning. Forwarded to both component and rune-module compiles.
+   */
+  warningFilter?: (warning: Warning) => boolean;
+  /**
+   * Passed through to `svelte/compiler` for component compiles only —
+   * `compileModule` accepts none of these fields (rune modules are always in
+   * runes mode and have no markup for `customElement`/`namespace` to affect).
+   */
   compilerOptions?: Pick<CompileOptions, 'customElement' | 'runes' | 'namespace'>;
 };
 
@@ -49,7 +60,7 @@ function isGenerationSide(value: unknown): value is GenerationSide {
 }
 
 function isCssMode(value: unknown): value is CssMode {
-  return value === 'injected' || value === 'external';
+  return value === 'injected' || value === 'external' || value === 'none';
 }
 
 function isBoolean(value: unknown): value is boolean {
@@ -62,10 +73,11 @@ function isFunction(value: unknown): value is (path: string) => string {
 
 const OPTION_VALIDATORS = {
   generate: { isValid: isGenerationSide, expected: "'client' or 'server'" },
-  css: { isValid: isCssMode, expected: "'injected' or 'external'" },
+  css: { isValid: isCssMode, expected: "'injected', 'external', or 'none'" },
   dev: { isValid: isBoolean, expected: 'a boolean' },
   hmr: { isValid: isBoolean, expected: 'a boolean' },
   compileFilename: { isValid: isFunction, expected: 'a function' },
+  warningFilter: { isValid: isFunction, expected: 'a function' },
 } as const;
 
 /**

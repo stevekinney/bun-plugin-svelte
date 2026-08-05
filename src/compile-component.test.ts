@@ -19,6 +19,7 @@ function parameters(
     cssMode: 'external',
     filename: '/app/counter.svelte',
     compilerOptions: undefined,
+    warningFilter: undefined,
     cssRegistry: createVirtualCssRegistry(),
     ...overrides,
   };
@@ -67,6 +68,68 @@ describe('compileComponent', () => {
     const result = compileComponent(source, '/app/plain.svelte', parameters());
 
     expect(result.contents).not.toContain('bun-svelte:');
+  });
+
+  it("'none' mode compiles scoped classes but discards the CSS entirely", async () => {
+    const source = await readFixture('counter.svelte');
+    const cssRegistry = createVirtualCssRegistry();
+
+    const result = compileComponent(
+      source,
+      '/app/counter.svelte',
+      parameters({ cssMode: 'none', cssRegistry }),
+    );
+
+    expect(result.contents).toContain('svelte-');
+    expect(result.contents).not.toContain('bun-svelte:');
+    expect(result.contents).not.toContain('append_styles');
+  });
+
+  it('passes compilerOptions through — customElement changes the emitted code', async () => {
+    const source = await readFixture('plain.svelte');
+
+    const result = compileComponent(
+      source,
+      '/app/plain.svelte',
+      parameters({ compilerOptions: { customElement: true } }),
+    );
+
+    expect(result.contents).toContain('create_custom_element');
+  });
+
+  it('customElement components register no external CSS — Svelte inlines shadow-DOM styles', async () => {
+    const source = await readFixture('counter.svelte');
+    const cssRegistry = createVirtualCssRegistry();
+
+    const result = compileComponent(
+      source,
+      '/app/counter.svelte',
+      parameters({ compilerOptions: { customElement: true }, cssRegistry }),
+    );
+
+    expect(result.contents).not.toContain('bun-svelte:');
+  });
+
+  it('compiles <script module> blocks and preserves their exports', async () => {
+    const source = await readFixture('module-script.svelte');
+
+    const result = compileComponent(source, '/app/module-script.svelte', parameters());
+
+    expect(result.contents).toContain('moduleMeta');
+    expect(result.contents).toContain('module-meta-export');
+  });
+
+  it('suppresses warnings rejected by warningFilter', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    const source = await readFixture('warning.svelte');
+
+    compileComponent(
+      source,
+      '/app/warning.svelte',
+      parameters({ warningFilter: (warning) => !warning.code.startsWith('a11y') }),
+    );
+
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('injected mode self-injects styles instead of importing CSS', async () => {

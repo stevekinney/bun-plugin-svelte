@@ -1,6 +1,20 @@
 import { describe, expect, it } from 'bun:test';
 
-import { createVirtualCssRegistry, VIRTUAL_CSS_NAMESPACE } from './virtual-css.js';
+import {
+  createVirtualCssRegistry,
+  stripNamespacePrefix,
+  VIRTUAL_CSS_NAMESPACE,
+} from './virtual-css.js';
+
+describe('stripNamespacePrefix', () => {
+  it('strips the bun-svelte prefix', () => {
+    expect(stripNamespacePrefix('bun-svelte:counter.css')).toBe('counter.css');
+  });
+
+  it('leaves bare identifiers untouched', () => {
+    expect(stripNamespacePrefix('counter.css')).toBe('counter.css');
+  });
+});
 
 describe('VirtualCssRegistry', () => {
   it('returns a namespaced specifier derived from the source path', () => {
@@ -34,13 +48,33 @@ describe('VirtualCssRegistry', () => {
     });
   });
 
-  it('consumes entries on load', () => {
+  it('accepts both prefixed and bare specifiers, as Bun.build and the runtime loader differ', () => {
+    const registry = createVirtualCssRegistry();
+    const specifier = registry.register('/app/counter.svelte', 'button {}');
+
+    const prefixed = registry.load(specifier);
+    const bare = registry.load(stripNamespacePrefix(specifier));
+
+    expect(prefixed).toEqual(bare);
+  });
+
+  it('is idempotent — repeated loads return the same content', () => {
     const registry = createVirtualCssRegistry();
     const specifier = registry.register('/app/counter.svelte', 'button {}');
 
     registry.load(specifier);
 
-    expect(() => registry.load(specifier)).toThrow(/not found/);
+    expect(registry.load(specifier).contents).toBe('button {}');
+  });
+
+  it('overwrites the entry in place when a component recompiles', () => {
+    const registry = createVirtualCssRegistry();
+
+    const first = registry.register('/app/counter.svelte', 'button { color: red; }');
+    const second = registry.register('/app/counter.svelte', 'button { color: blue; }');
+
+    expect(second).toBe(first);
+    expect(registry.load(first).contents).toBe('button { color: blue; }');
   });
 
   it('throws for a specifier that was never registered', () => {

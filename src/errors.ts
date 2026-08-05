@@ -55,6 +55,31 @@ export function mapCompileError(error: unknown, path: string): Error {
   return new Error(String(error));
 }
 
+/**
+ * Fail fast with a clear message when this package is loaded outside Bun.
+ * Under plain Node the module would import cleanly and then crash deep inside
+ * a bundler callback with a bare `ReferenceError: Bun is not defined`; this
+ * converts that into an immediate, actionable error at import time.
+ */
+export function assertBunRuntime(scope: { Bun?: unknown }): void {
+  if (scope.Bun === undefined) {
+    throw new Error(
+      '@lostgradient/bun-plugin-svelte requires the Bun runtime (it uses Bun.Transpiler and Bun.file). Run under Bun, or use @sveltejs/vite-plugin-svelte for Node-based toolchains.',
+    );
+  }
+}
+
+/**
+ * Map a TypeScript transpile failure (thrown by `Bun.Transpiler`, before the
+ * Svelte compiler ever runs) into an `Error` that names the offending file —
+ * Bun's transpiler errors do not carry the path themselves.
+ */
+export function mapTranspileError(error: unknown, path: string): Error {
+  const message = error instanceof Error ? error.message : String(error);
+
+  return new Error(`${path}: TypeScript transpile failed: ${message}`, { cause: error });
+}
+
 /** Print compiler warnings with file positions; Bun's plugin API has no warnings channel. */
 export function forwardWarnings(warnings: readonly SvelteWarning[], path: string): void {
   for (const warning of warnings) {

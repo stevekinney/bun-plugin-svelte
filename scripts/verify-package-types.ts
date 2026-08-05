@@ -32,6 +32,7 @@ type Manifest = {
   readonly types?: string;
   readonly exports?: Record<string, ExportCondition>;
   readonly peerDependencies?: Record<string, string>;
+  readonly peerDependenciesMeta?: Record<string, { optional?: boolean }>;
 };
 
 const manifest = pkg as Manifest;
@@ -132,7 +133,12 @@ try {
   // `@types/node` stands in for the ambient types a Node consumer already has.
   // Without it, any declaration mentioning the `NodeJS` namespace fails here
   // for a reason that has nothing to do with the package being correct.
-  const peers = Object.keys(manifest.peerDependencies ?? {});
+  // Only non-optional peers: a real consumer may not have optional ones
+  // installed, so installing them here would hide exactly the failure this
+  // script exists to catch — declarations that break without them.
+  const peers = Object.entries(manifest.peerDependencies ?? {})
+    .filter(([name]) => manifest.peerDependenciesMeta?.[name]?.optional !== true)
+    .map(([name]) => name);
   await $`npm install --silent --no-audit --no-fund ${tarballPath} typescript @types/node ${peers}`.cwd(
     directory,
   );

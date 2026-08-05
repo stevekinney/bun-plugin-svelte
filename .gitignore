@@ -2,6 +2,11 @@
 node_modules/
 .bun/
 
+# Test fixture package used to verify the `svelte` export condition —
+# a deliberate, committed fake node_modules, exempt from the rule above.
+!test/fixtures/condition-app/node_modules/
+!test/fixtures/condition-app/node_modules/**
+
 # Logs
 logs/
 *.log

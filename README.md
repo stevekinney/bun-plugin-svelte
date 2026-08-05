@@ -104,14 +104,15 @@ plugin(sveltePlugin({ generate: 'client' }));
 
 ## Options
 
-| Option            | Type                       | Default                     | What it does                                                                                                      |
-| ----------------- | -------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `generate`        | `'client' \| 'server'`     | inferred (see below)        | Which side to compile for.                                                                                        |
-| `dev`             | `boolean`                  | `NODE_ENV !== 'production'` | Dev-mode compiler checks and richer runtime errors.                                                               |
-| `css`             | `'injected' \| 'external'` | `'external'`                | `'external'` extracts component CSS into a real stylesheet asset; `'injected'` appends styles from JS at runtime. |
-| `hmr`             | `boolean`                  | dev-server hint, else `dev` | Whether the compiler emits hot-reload glue. Never applied to server compiles.                                     |
-| `compileFilename` | `(path: string) => string` | identity                    | Rewrite the filename the compiler sees. Scoped-CSS class hashes derive from it — see below.                       |
-| `compilerOptions` | `Pick<CompileOptions, …>`  | —                           | Pass-through for `customElement`, `runes`, and `namespace`.                                                       |
+| Option            | Type                                 | Default                     | What it does                                                                                                         |
+| ----------------- | ------------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `generate`        | `'client' \| 'server'`               | inferred (see below)        | Which side to compile for.                                                                                           |
+| `dev`             | `boolean`                            | `NODE_ENV !== 'production'` | Dev-mode compiler checks and richer runtime errors.                                                                  |
+| `css`             | `'injected' \| 'external' \| 'none'` | `'external'`                | `'external'` extracts CSS into a real stylesheet asset; `'injected'` delivers styles from JS; `'none'` discards CSS. |
+| `hmr`             | `boolean`                            | dev-server hint, else `dev` | Whether the compiler emits hot-reload glue. Never applied to server compiles.                                        |
+| `compileFilename` | `(path: string) => string`           | identity                    | Rewrite the filename the compiler sees. Scoped-CSS class hashes derive from it — see below.                          |
+| `warningFilter`   | `(warning) => boolean`               | all warnings printed        | Return `false` to suppress a warning, e.g. `(w) => !w.code.startsWith('a11y')`. Components and rune modules.         |
+| `compilerOptions` | `Pick<CompileOptions, …>`            | —                           | Pass-through for `customElement`, `runes`, and `namespace`. Components only — `compileModule` accepts none.          |
 
 When `generate` is not set, the side comes from the dev server's per-request hint, then from the build target (`browser` → client, `node`/`bun` → server), and finally falls back to `server` — the runtime `Bun.plugin()` builder exposes no build config to infer from.
 
@@ -121,11 +122,32 @@ Svelte derives scoped-CSS class names (`svelte-abc123`) from the compiler `filen
 
 ### CSS modes
 
-In `'external'` mode the plugin registers each component's extracted CSS as a virtual `bun-svelte:*.css` module and appends an import to the compiled JS; Bun bundles it into a real `.css` artifact (and the dev server serves it as a stylesheet). Server compiles never emit CSS imports — SSR output has nowhere to load a stylesheet from. In `'injected'` mode the compiled JS appends its own styles at runtime and no separate CSS artifact exists.
+In `'external'` mode (the default) the plugin registers each component's extracted CSS as a virtual `bun-svelte:*.css` module and appends an import to the compiled JS; Bun bundles it into a real `.css` artifact (and the dev server serves it as a stylesheet). Server compiles never emit CSS imports — SSR output has nowhere to load a stylesheet from. Under the runtime `Bun.plugin()` loader, which supports no CSS loader at all, external mode degrades to `'none'` automatically.
+
+In `'injected'` mode the compiled JS delivers its own styles — appended to the document at runtime on the client, and collected into `render()`'s `head` during SSR. This makes `'injected'` the right choice for SSR-only deployments that never ship a client stylesheet.
+
+In `'none'` mode components compile with scoped class names but the CSS is discarded entirely — for component libraries whose stylesheets are built and shipped out of band (per-component CSS sidecars, a design-system cascade), where an auto-emitted stylesheet would duplicate rules.
+
+One special case: with `compilerOptions: { customElement: true }`, Svelte always inlines styles into the element's shadow DOM and the `css` option is bypassed — no external CSS ever exists for custom elements.
 
 ### The `svelte` export condition
 
-The plugin appends `svelte` to the build's resolve conditions so packages that ship raw component source behind a `"svelte"` condition in their `exports` map (the convention `@sveltejs/package` produces) resolve to that source, which the plugin then compiles with your options. Caveat: Bun's dev server currently hands plugins a config object it never reads, so the condition only takes effect under `Bun.build`.
+Packages that ship raw component source behind a `"svelte"` condition in their `exports` map (the convention `@sveltejs/package` produces) resolve to that source when you pass the condition to your build — the plugin then compiles it with your options:
+
+```ts
+await Bun.build({
+  entrypoints: ['./src/main.ts'],
+  target: 'browser',
+  conditions: ['svelte'],
+  plugins: [sveltePlugin({ generate: 'client' })],
+});
+```
+
+You must pass `conditions: ['svelte']` yourself: a plugin cannot add it for you, because Bun snapshots the build config before plugins run (and the dev server and runtime loader expose no conditions configuration at all).
+
+### TypeScript and `.svelte` imports
+
+Svelte ships an ambient `declare module '*.svelte'` in its own types, so `import Application from './application.svelte'` type-checks as long as `svelte`'s types are part of your program (importing anything from `svelte` in the same project is enough). For precise per-component prop types, use `svelte-check`, which understands component internals.
 
 ## Not supported
 
