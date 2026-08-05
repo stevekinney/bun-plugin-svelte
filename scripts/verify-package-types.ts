@@ -82,11 +82,12 @@ const specifiers = subpaths.map((subpath) =>
   subpath === '.' ? manifest.name : `${manifest.name}${subpath.slice(1)}`,
 );
 
-const packed = await $`npm pack --silent`.text();
-const tarball = packed.trim().split('\n').at(-1);
-if (tarball === undefined || tarball.length === 0) {
-  throw new Error('npm pack did not report a tarball name.');
-}
+// `bun pm pack`, not `npm pack`: this script runs inside `prepublishOnly`,
+// i.e. nested within an active `npm publish` process, where a second npm
+// invocation silently fails to produce a tarball (the same failure mode that
+// forced `check-package.ts` off `attw --pack`).
+const tarball = 'verify-package-types.tgz';
+await $`bun pm pack --quiet --filename ${tarball}`;
 
 const tarballPath = join(process.cwd(), tarball);
 const directory = await mkdtemp(join(tmpdir(), 'verify-package-types-'));
