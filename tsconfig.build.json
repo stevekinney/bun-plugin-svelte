@@ -9,10 +9,10 @@
     "rootDir": "./src",
     "outDir": "./dist",
     "stripInternal": true,
-    // Published code targets Node, so the declaration emit sees Node globals
-    // (process, Buffer, …) but NOT @types/bun — this keeps Bun-only globals out
-    // of the shipped .d.ts so they stay resolvable for Node consumers.
-    "types": ["node"]
+    // This package's public API is Bun-typed by design (BunPlugin,
+    // Bun.Transpiler), so the declaration emit deliberately includes
+    // @types/bun — consumers get it via the optional @types/bun peer.
+    "types": ["bun"]
   },
   "include": ["src"],
   "exclude": ["node_modules", "**/*.test.ts", "**/*.spec.ts"]

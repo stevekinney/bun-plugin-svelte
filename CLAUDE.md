@@ -7,10 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Development
 
 ```bash
-bun run dev               # Start development with watch mode
+bun run dev               # Run the test suite in watch mode
 bun run build             # Build for production (outputs to dist/)
-bun ./dist/bun/index.js   # Run Bun-optimized build
-node ./dist/node/index.js # Run Node-compatible build
+bun example/server.ts     # Run the example app on Bun's fullstack dev server
+bun example/server-side-render.ts # SSR smoke test via the runtime plugin
 ```
 
 ### Testing
@@ -47,27 +47,32 @@ bun run verify:scaffold      # Fail while template placeholder content remains
 
 ## Architecture Overview
 
+### What This Package Is
+
+`@lostgradient/bun-plugin-svelte` is a Bun bundler/runtime plugin that compiles Svelte 5 `.svelte` components and `.svelte.(js|ts)` rune modules. It works in three registration modes: `Bun.build({ plugins })`, the runtime `Bun.plugin()`, and the fullstack dev server (`[serve.static] plugins` in `bunfig.toml`), including HMR. Primary consumer: `@lostgradient/cinder`.
+
 ### Core Design Principles
 
-1. **Environment-First Configuration**: All configuration starts with environment variables validated through Zod schemas in `src/environment.ts`. The `environment` object is the single source of truth.
+1. **Bun-only by design**: Unlike the template this repo was scaffolded from, published code here deliberately uses Bun APIs (`Bun.file`, `Bun.Transpiler`, `BunPlugin`) — a Bun plugin cannot be runtime-neutral. There is a single `dist/` build (`target: 'bun'`), and `tsconfig.build.json` emits declarations against `@types/bun` (declared as an optional peer).
 
-2. **Lean Surface Area**: This template intentionally avoids framework-specific scaffolding (custom error classes, logger wrappers, etc.). Add only what you need for your project.
+2. **Pure decision functions**: Bun's dev server passes `side`/`hmr` hints on `onLoad` arguments that `Bun.build` can never produce (and that `bun-types` does not type). Every side/HMR/filename/CSS decision lives in a pure exported function in `src/options.ts` so the 100% coverage gate can reach those branches with hand-built arguments. `src/svelte-plugin.ts` stays thin glue.
 
-3. **Runtime-Neutral Published Code**: `src/` must not use Bun-only runtime APIs (`Bun.file`, `Bun.env`, `Bun.serve`, etc.). Those APIs are fine in `scripts/` and test files, but must not appear in published library output.
+3. **The compiler does the heavy lifting**: `hmr: true` makes Svelte emit its own `import.meta.hot` glue; `css: 'injected'` makes compiled JS self-inject styles. The plugin only decides which flags to pass — only `css: 'external'` needs plugin machinery (the virtual `bun-svelte:*.css` module registry in `src/virtual-css.ts`).
 
 ### Key Notes
 
-- **ESM + TypeScript**: Source files are TypeScript modules; build output targets both Node and Bun.
+- **ESM + TypeScript**: Source files are TypeScript modules; build output targets Bun.
 - **Import paths**: Use standard TS/ESM imports; no `@/*` path alias (it leaks into `.d.ts` files).
-- **Library output**: Dual-emit — `dist/node/` for Node consumers, `dist/bun/` for Bun consumers. The `exports` map routes consumers automatically.
+- **Default export contract**: `src/index.ts` default-exports a ready plugin _instance_ (not the factory) because bunfig string registration (`plugins = ["@lostgradient/bun-plugin-svelte"]`) expects a `BunPlugin` object.
+- **`test/fixtures/`** holds `.svelte` and rune-module fixtures. They are excluded from `tsconfig.json` and oxlint (the plugin compiles them, `tsc` cannot), and must stay out of `src/` because `package.json#files` ships `src`.
+- **`example/`** is a manual smoke-test app (dev server + SSR), excluded from the published tarball and from lint/typecheck.
 
 ### Library Packaging
 
 The build produces:
 
-- `dist/node/index.js` — ESM bundle, `Bun.build target: 'node'`, all deps external
-- `dist/bun/index.js` — ESM bundle, `Bun.build target: 'bun'`, all deps external
-- `dist/index.d.ts` — TypeScript declarations (shared)
+- `dist/index.js` — ESM bundle, `Bun.build target: 'bun'`, all deps external
+- `dist/index.d.ts` — TypeScript declarations
 
 The `exports` map in `package.json`:
 
@@ -75,9 +80,8 @@ The `exports` map in `package.json`:
 {
   ".": {
     "types": "./dist/index.d.ts",
-    "bun": "./dist/bun/index.js",
-    "import": "./dist/node/index.js",
-    "default": "./dist/node/index.js"
+    "bun": "./dist/index.js",
+    "default": "./dist/index.js"
   },
   "./package.json": "./package.json"
 }
@@ -139,7 +143,7 @@ There is no shared `src/types.ts` in this template. Add shared or domain-specifi
 
 ### Adding New Features
 
-1. **Environment variables**: Add to `.env.example` first, then update the schema in `src/environment.ts`.
+1. **No runtime environment schema**: The only environment read is `process.env.NODE_ENV` (the `dev` compiler-flag default) in `src/options.ts`.
 2. **Types**: Domain-specific types live near their modules.
 
 ### Testing Approach

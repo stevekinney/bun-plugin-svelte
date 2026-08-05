@@ -21,22 +21,18 @@ const external = Array.from(
 
 await $`rm -rf dist`;
 
-// The node and bun builds are independent (separate outdirs, no shared state),
-// so run them concurrently rather than one after the other.
-await Promise.all(
-  (['node', 'bun'] as const).map((target) =>
-    Bun.build({
-      entrypoints,
-      outdir: `./dist/${target}`,
-      target,
-      format: 'esm',
-      naming: '[dir]/[name].js',
-      sourcemap: 'linked',
-      minify: false,
-      external,
-    }),
-  ),
-);
+// The plugin is inherently Bun-only (Bun.Transpiler, Bun.file, BunPlugin), so
+// there is no Node build — a single Bun-target bundle is the whole output.
+await Bun.build({
+  entrypoints,
+  outdir: './dist',
+  target: 'bun',
+  format: 'esm',
+  naming: '[dir]/[name].js',
+  sourcemap: 'linked',
+  minify: false,
+  external,
+});
 
 await $`bun run tsc --declaration --emitDeclarationOnly --project tsconfig.build.json`;
 

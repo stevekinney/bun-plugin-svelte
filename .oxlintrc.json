@@ -41,12 +41,25 @@
     "typescript/no-floating-promises": "error",
     "typescript/await-thenable": "error"
   },
-  "ignorePatterns": ["dist/**", "build/**", "coverage/**", ".bun/**", "node_modules/**", "*.lock"],
+  "ignorePatterns": [
+    "dist/**",
+    "build/**",
+    "coverage/**",
+    ".bun/**",
+    "node_modules/**",
+    "*.lock",
+    "test/fixtures/**",
+    "example/**"
+  ],
   "overrides": [
     {
       "files": ["**/*.test.ts", "**/*.spec.ts", "**/test/**/*.ts", "**/__tests__/**/*.ts"],
       "rules": {
         "typescript/no-explicit-any": "off",
+        "typescript/no-unsafe-type-assertion": "off",
+        "typescript/no-unnecessary-type-conversion": "off",
+        "typescript/no-unnecessary-type-assertion": "off",
+        "unicorn/consistent-function-scoping": "off",
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-assignment": "off",
         "typescript/no-unsafe-call": "off",

@@ -1,15 +1,20 @@
-export { environment, parseEnvironment, type Environment } from './environment.js';
+import { sveltePlugin } from './svelte-plugin.js';
+
+export { sveltePlugin } from './svelte-plugin.js';
+export type { CssMode, DevServerHints, GenerationSide, SvelteOptions } from './options.js';
+export type { VirtualCssLoadResult } from './virtual-css.js';
 
 /**
- * Greet someone by name.
+ * Ready-to-use plugin instance with default options, so bunfig string
+ * registration works directly:
  *
- * This is a placeholder for your library's public API — replace it with your
- * own exports. It exists so the package has a real, tested surface area out of
- * the box rather than an empty module.
+ * ```toml
+ * [serve.static]
+ * plugins = ["@lostgradient/bun-plugin-svelte"]
+ * ```
  *
- * @param name - The name to greet.
- * @returns A friendly greeting.
+ * Bun resolves that string to this package's default export and expects an
+ * already-constructed plugin object, not a factory. Call
+ * {@link sveltePlugin} instead when you need options.
  */
-export function greet(name: string): string {
-  return `Hello, ${name}!`;
-}
+export default sveltePlugin();

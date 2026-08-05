@@ -53,5 +53,5 @@
     "types": ["bun"]
   },
   "include": ["src", "scripts", "test"],
-  "exclude": ["node_modules", "coverage", "**/dist/**", "**/build/**"]
+  "exclude": ["node_modules", "coverage", "**/dist/**", "**/build/**", "test/fixtures"]
 }

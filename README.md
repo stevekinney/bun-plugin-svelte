@@ -1,132 +1,139 @@
-# Project Name
+# @lostgradient/bun-plugin-svelte
 
-## Prerequisites
+A Bun plugin for Svelte 5 — compile `.svelte` components and `.svelte.(js|ts)` rune modules with `Bun.build()`, the runtime `Bun.plugin()`, or Bun's fullstack dev server (with HMR). Client and server (SSR) output, two CSS delivery modes, no preprocessors required: Svelte 5 compiles `<script lang="ts">` natively.
 
-- [Bun](https://bun.sh) installed on your machine.
+## Install
 
-## Installation
-
-Create a new project based on this template:
-
-```bash
-# From the local template in ~/.bun-create/basic
-bun create basic $PROJECT_DIRECTORY
-
-# Skip installing dependencies (useful for CI or offline work)
-bun create basic $PROJECT_DIRECTORY --no-install
+```sh
+bun add -D @lostgradient/bun-plugin-svelte svelte
 ```
 
-If you publish this template to a GitHub repository, you can also create from
-it directly — replace `<owner>/<repo>` with your repository:
+Requires Bun ≥ 1.3 and Svelte 5.
 
-```bash
-bun create github.com/<owner>/<repo> $PROJECT_DIRECTORY
+## Dev server (`bun index.html`)
+
+Bun's fullstack dev server bundles the scripts and stylesheets referenced by an HTML entry. Register the plugin in `bunfig.toml` and point Bun at your page:
+
+```toml
+[serve.static]
+plugins = ["@lostgradient/bun-plugin-svelte"]
 ```
 
-The `--no-install` flag is helpful when:
-
-- Working in offline environments
-- Using CI pipelines with cached dependencies
-- You plan to modify dependencies before installation
-
-## Core Tools
-
-- Bun: runtime, bundler, test runner, and package manager
-- TypeScript: strict type checking
-- Oxlint: fast Rust-based linter
-- Prettier: formatting
-- Lefthook: Git hooks
-
-## Development
-
-Start the development server:
-
-```bash
-bun run dev
+```html
+<!-- index.html -->
+<!doctype html>
+<html>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>
 ```
 
-### Git Hooks (Lefthook)
+```ts
+// main.ts
+import { mount } from 'svelte';
 
-Lefthook is installed via the `prepare` script on `bun install`. Hook implementations live in `scripts/hooks/` and are configured in `lefthook.yml`.
+import Application from './application.svelte';
 
-- `pre-commit`: formats staged files with Prettier, runs oxlint --fix on staged files, blocks staged conflict markers, and checks that `bun.lock` is staged when `package.json` changes. Fast by design — typecheck and tests are intentionally deferred to pre-push. Skipped during merge/rebase.
-- `pre-push`: runs `bun run validate` (format check, lint, typecheck, tests, build, and package validation). This is the full gate before code leaves your machine. Skipped in CI.
-- `post-checkout`: installs deps when `bun.lock` changed; surfaces config changes.
-- `post-merge`: installs/cleans when dependencies or config changed; flags leftover conflict markers.
-
-Hooks print only when something fails, so clean commits and pushes stay quiet. Use `--no-verify` to bypass hooks (not recommended; CI will catch you anyway).
-
-### Running Tests
-
-This template uses Bun's built-in test runner with a preloaded setup file at `test/setup.ts` that resets mocks and system time after each test.
-
-```bash
-bun test              # run all tests
-bun test --watch      # watch mode
-bun test --coverage   # coverage report
+mount(Application, { target: document.getElementById('root')! });
 ```
 
-Coverage thresholds are configured in `bunfig.toml` under `[test]`. The default is 100% for `src/`.
+```sh
+bun index.html
+```
 
-For mocking, clock control, and module mocking see the [bun:test docs](https://bun.sh/docs/test/mocks).
+Editing a component hot-reloads it in place: the dev server tells the plugin which side it is bundling and the Svelte compiler emits its own `import.meta.hot` glue. The same works from `Bun.serve()`:
 
-### Continuous Integration
+```ts
+import index from './index.html';
 
-A CI workflow at `.github/workflows/ci.yaml` runs `bun run validate` on every push and pull request against Node 22 (LTS) and Node 24 (latest). This includes linting, typechecking, tests, build, and package validation (`publint` + `@arethetypeswrong/cli`).
+Bun.serve({
+  routes: { '/': index },
+  development: { hmr: true, console: true },
+});
+```
 
-### Understanding `bun run` vs `bunx`
+A runnable version of this app lives in [`example/`](./example).
 
-- **bun run**: Executes scripts defined in `package.json` or runs local TypeScript/JavaScript files directly.
-- **bun x**: Executes binaries from installed packages. For packages already in `devDependencies`, prefer `bun run <script>` or calling the binary directly rather than `bunx`, which can pull a remote version.
+## Bundler (`Bun.build`)
 
-## Project Structure
+```ts
+import { sveltePlugin } from '@lostgradient/bun-plugin-svelte';
 
-- `src/` — Source code
-- `test/` — Test setup (`test/setup.ts` is preloaded by bun:test)
-- `scripts/hooks/` — Git hook implementations (TypeScript + Bun)
-- `scripts/setup/` — One-time `bun create` setup scripts (self-remove after first install)
-- `lefthook.yml` — Git hook configuration
+await Bun.build({
+  entrypoints: ['./src/main.ts'],
+  outdir: './dist',
+  target: 'browser',
+  plugins: [sveltePlugin({ generate: 'client' })],
+});
+```
 
-## Library Output
+### Server-side rendering
 
-When built, the package emits two ESM bundles:
+Compile the same components for the server side and render them with `svelte/server`:
 
-- `dist/node/index.js` — Node-compatible build (`Bun.build target: 'node'`)
-- `dist/bun/index.js` — Bun-optimized build (`Bun.build target: 'bun'`)
-- `dist/index.d.ts` — Shared TypeScript declarations
+```ts
+import { render } from 'svelte/server';
+import { sveltePlugin } from '@lostgradient/bun-plugin-svelte';
 
-The `package.json` `exports` map routes Bun consumers to the Bun build and Node/bundler consumers to the Node build automatically.
+await Bun.build({
+  entrypoints: ['./src/application.svelte'],
+  outdir: './dist/server',
+  target: 'bun',
+  plugins: [sveltePlugin({ generate: 'server' })],
+});
 
-Published `src/` code must not use Bun-only runtime APIs (`Bun.file`, `Bun.serve`, etc.) — those belong in `scripts/` and tests only.
+const { default: Application } = await import('./dist/server/application.js');
+const { head, body } = render(Application);
+```
 
-## Publishing
+Client and server are two independent compilations of the same source — bundle each side separately, exactly as Vite and SvelteKit do.
 
-Publishing is opt-in. When you're ready to publish to npm:
+## Runtime (`Bun.plugin`)
 
-1. Set `publishConfig` in your `package.json` as needed:
-   ```json
-   "publishConfig": { "access": "public", "provenance": true }
-   ```
-2. Tag the release: `git tag vX.Y.Z && git push --tags`
-3. The `release.yaml` workflow triggers, verifies the tag matches `package.json`, builds, validates the package exports, and publishes with npm provenance (requires `id-token: write` permission, already set in the workflow).
+Register the plugin at runtime — for example in a `bun test` preload — and import `.svelte` files directly:
 
-## Customization
+```ts
+// preload.ts (wired up via bunfig.toml's `preload`)
+import { plugin } from 'bun';
+import { sveltePlugin } from '@lostgradient/bun-plugin-svelte';
 
-### TypeScript Configuration
+plugin(sveltePlugin({ generate: 'client' }));
+```
 
-The base `tsconfig.json` targets ESNext with strict settings tuned for a Bun library. To add a frontend app layer:
+## Options
 
-- Extend `tsconfig.json` in a new `tsconfig.frontend.json`
-- Add `"lib": ["ESNext","DOM","DOM.Iterable"]` and `"jsx": "react-jsx"` (or your framework equivalent)
+| Option            | Type                       | Default                     | What it does                                                                                                      |
+| ----------------- | -------------------------- | --------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `generate`        | `'client' \| 'server'`     | inferred (see below)        | Which side to compile for.                                                                                        |
+| `dev`             | `boolean`                  | `NODE_ENV !== 'production'` | Dev-mode compiler checks and richer runtime errors.                                                               |
+| `css`             | `'injected' \| 'external'` | `'external'`                | `'external'` extracts component CSS into a real stylesheet asset; `'injected'` appends styles from JS at runtime. |
+| `hmr`             | `boolean`                  | dev-server hint, else `dev` | Whether the compiler emits hot-reload glue. Never applied to server compiles.                                     |
+| `compileFilename` | `(path: string) => string` | identity                    | Rewrite the filename the compiler sees. Scoped-CSS class hashes derive from it — see below.                       |
+| `compilerOptions` | `Pick<CompileOptions, …>`  | —                           | Pass-through for `customElement`, `runes`, and `namespace`.                                                       |
 
-### Template Setup (bun-create)
+When `generate` is not set, the side comes from the dev server's per-request hint, then from the build target (`browser` → client, `node`/`bun` → server), and finally falls back to `server` — the runtime `Bun.plugin()` builder exposes no build config to infer from.
 
-When using `bun create` with this template, a postinstall sequence runs once to bootstrap the project:
+### `compileFilename`
 
-- Sets `package.json:name` from the folder name
-- Copies `.env.example` to `.env` (or appends missing keys)
-- Writes `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, and `GEMINI_API_KEY` from your shell into `.env` if the values are currently empty or placeholder
-- Runs `bun run prepare` to install Lefthook hooks
-- Removes `scripts/setup/` and the `bun-create` entry from `package.json`
+Svelte derives scoped-CSS class names (`svelte-abc123`) from the compiler `filename`. If the same component is compiled once from a workspace checkout path and once from its published `node_modules` path — a common setup when a component library's server bundle and client bundle resolve the source differently — the class hashes disagree and hydration produces unstyled markup. `compileFilename` lets you normalize both paths to a single canonical string so both compilations agree.
 
-These steps are idempotent — safe to re-run if something fails partway through.
+### CSS modes
+
+In `'external'` mode the plugin registers each component's extracted CSS as a virtual `bun-svelte:*.css` module and appends an import to the compiled JS; Bun bundles it into a real `.css` artifact (and the dev server serves it as a stylesheet). Server compiles never emit CSS imports — SSR output has nowhere to load a stylesheet from. In `'injected'` mode the compiled JS appends its own styles at runtime and no separate CSS artifact exists.
+
+### The `svelte` export condition
+
+The plugin appends `svelte` to the build's resolve conditions so packages that ship raw component source behind a `"svelte"` condition in their `exports` map (the convention `@sveltejs/package` produces) resolve to that source, which the plugin then compiles with your options. Caveat: Bun's dev server currently hands plugins a config object it never reads, so the condition only takes effect under `Bun.build`.
+
+## Not supported
+
+- **Preprocessors** (Sass, PostCSS in `<style>`, `svelte-preprocess`): Svelte 5 handles TypeScript natively; anything else is out of scope for now.
+- **Svelte 4 and earlier.**
+- **Source maps** for compiled components: Bun's plugin API has no channel for layered source maps from `onLoad` results yet.
+- The dev-server contract (`side`/`hmr` hints on load arguments) is not part of Bun's typed API; it is covered by unit tests against hand-built arguments and verified manually against the real dev server.
+
+## License
+
+MIT

@@ -1,0 +1,4 @@
+# Registers the plugin for Bun's fullstack dev server (HTML-imported assets).
+# In a real project this would be: plugins = ["@lostgradient/bun-plugin-svelte"]
+[serve.static]
+plugins = ["../src/index.ts"]
