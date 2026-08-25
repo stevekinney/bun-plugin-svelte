@@ -116,7 +116,7 @@ plugin(sveltePlugin({ generate: 'client' }));
 
 When `generate` is not set, the side comes from the dev server's per-request hint, then from the build target (`browser` → client, `node`/`bun` → server), and finally falls back to `server` — the runtime `Bun.plugin()` builder exposes no build config to infer from.
 
-Bun only applies Svelte's `development` export condition when `NODE_ENV` is exactly `'development'`, and there's no `bunfig.toml` key that sets it. If you need dev-mode Svelte internals under some other `NODE_ENV`, pass `bun --conditions development` on the command line.
+Bun only applies Svelte's `development` export condition when `NODE_ENV` is exactly `'development'`, and there's no `bunfig.toml` key that sets it. The `bun --conditions development` flag changes module resolution only—it does not set `NODE_ENV`—so on its own it gives you Svelte's development runtime while your components still compile without dev-mode checks. If you need dev-mode internals under some other `NODE_ENV`, pair the flag with an explicit `sveltePlugin({ dev: true })`, or just set `NODE_ENV=development` and get both sides from one switch.
 
 ### `compileFilename`
 
