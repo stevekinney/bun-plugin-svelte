@@ -33,7 +33,17 @@ if (!clientBuild.success) {
   throw new Error('Client build failed');
 }
 
-const clientScript = await clientBuild.outputs[0]!.text();
+// Take the entry point by kind rather than by index: `outputs` can also carry
+// chunks, assets, and sourcemaps, so `outputs[0]` only happens to be the script
+// while this build stays a single unsplit entrypoint. Assert that rather than
+// assume it — inlining the wrong artifact would fail as a blank page.
+const entryPoints = clientBuild.outputs.filter((output) => output.kind === 'entry-point');
+
+if (entryPoints.length !== 1) {
+  throw new Error(`Expected exactly one client entry point, got ${entryPoints.length}`);
+}
+
+const clientScript = await entryPoints[0]!.text();
 
 const html = `<!doctype html>
 <html lang="en">
