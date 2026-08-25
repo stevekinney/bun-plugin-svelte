@@ -62,11 +62,9 @@
     "verify:release-version": "bun run scripts/verify-release-version.ts",
     "verify:scaffold": "bun run scripts/verify-scaffold-replaced.ts"
   },
-  "dependencies": {
-    "@types/bun": "^1.3.14"
-  },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.5",
+    "@types/bun": "^1.3.14",
     "@types/node": "^26.1.1",
     "chalk": "^6.0.0",
     "change-case": "^5.4.4",
@@ -80,7 +78,13 @@
     "typescript": "^7.0.2"
   },
   "peerDependencies": {
+    "@types/bun": "*",
     "svelte": ">=5.0.0 <6"
+  },
+  "peerDependenciesMeta": {
+    "@types/bun": {
+      "optional": true
+    }
   },
   "engines": {
     "bun": ">=1.3.0"

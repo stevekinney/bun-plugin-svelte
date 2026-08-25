@@ -32,7 +32,6 @@ type Manifest = {
   readonly types?: string;
   readonly exports?: Record<string, ExportCondition>;
   readonly peerDependencies?: Record<string, string>;
-  readonly peerDependenciesMeta?: Record<string, { optional?: boolean }>;
 };
 
 const manifest = pkg as Manifest;
@@ -134,12 +133,21 @@ try {
   // `@types/node` stands in for the ambient types a Node consumer already has.
   // Without it, any declaration mentioning the `NodeJS` namespace fails here
   // for a reason that has nothing to do with the package being correct.
-  // Only non-optional peers: a real consumer may not have optional ones
-  // installed, so installing them here would hide exactly the failure this
-  // script exists to catch — declarations that break without them.
-  const peers = Object.entries(manifest.peerDependencies ?? {})
-    .filter(([name]) => manifest.peerDependenciesMeta?.[name]?.optional !== true)
-    .map(([name]) => name);
+  //
+  // All peers, including optional ones: this package's public API is
+  // Bun-typed by design (`BunPlugin`, `Bun.Transpiler`), so the shipped
+  // declarations structurally require `@types/bun` to resolve — that is the
+  // documented, intentional trade (see `tsconfig.build.json` and the
+  // `@types/bun` entry in `peerDependenciesMeta`). Making it an optional peer
+  // fixes the reported bug (it no longer installs into every consumer's
+  // dependency tree and pollutes unrelated files with `bun-types` globals);
+  // it does not, and cannot, make the types resolve without it — `options.ts`
+  // and `svelte-plugin.ts` both import types from `'bun'` directly. So this
+  // gate verifies the supported typed-consumer scenario, peer installed. A
+  // consumer who skips the peer is protected at the dependency-graph level,
+  // not by Bun-free declarations, and is expected to see type errors only if
+  // they actually import this package's types.
+  const peers = Object.keys(manifest.peerDependencies ?? {});
   await $`npm install --silent --no-audit --no-fund ${tarballPath} typescript @types/node ${peers}`.cwd(
     directory,
   );
