@@ -1,6 +1,6 @@
 # @lostgradient/bun-plugin-svelte
 
-A Bun plugin for Svelte 5 — compile `.svelte` components and `.svelte.(js|ts)` rune modules with `Bun.build()`, the runtime `Bun.plugin()`, or Bun's fullstack dev server (with HMR). Client and server (SSR) output, two CSS delivery modes, no preprocessors required: Svelte 5 compiles `<script lang="ts">` natively.
+A Bun plugin for Svelte 5—compile `.svelte` components and `.svelte.(js|ts)` rune modules with `Bun.build()`, the runtime `Bun.plugin()`, or Bun's fullstack dev server (with HMR). Client and server (SSR) output, two CSS delivery modes, no preprocessors required: Svelte 5 compiles `<script lang="ts">` natively.
 
 ## Install
 
@@ -88,11 +88,11 @@ const { default: Application } = await import('./dist/server/application.js');
 const { head, body } = render(Application);
 ```
 
-Client and server are two independent compilations of the same source — bundle each side separately, exactly as Vite and SvelteKit do.
+Client and server are two independent compilations of the same source—bundle each side separately, exactly as Vite and SvelteKit do.
 
 ## Runtime (`Bun.plugin`)
 
-Register the plugin at runtime — for example in a `bun test` preload — and import `.svelte` files directly:
+Register the plugin at runtime—for example in a `bun test` preload—and import `.svelte` files directly:
 
 ```ts
 // preload.ts (wired up via bunfig.toml's `preload`)
@@ -110,31 +110,31 @@ plugin(sveltePlugin({ generate: 'client' }));
 | `dev`             | `boolean`                            | `NODE_ENV === 'development'` | Dev-mode compiler checks and richer runtime errors.                                                                  |
 | `css`             | `'injected' \| 'external' \| 'none'` | `'external'`                 | `'external'` extracts CSS into a real stylesheet asset; `'injected'` delivers styles from JS; `'none'` discards CSS. |
 | `hmr`             | `boolean`                            | dev-server hint, else `dev`  | Whether the compiler emits hot-reload glue. Never applied to server compiles.                                        |
-| `compileFilename` | `(path: string) => string`           | identity                     | Rewrite the filename the compiler sees. Scoped-CSS class hashes derive from it — see below.                          |
+| `compileFilename` | `(path: string) => string`           | identity                     | Rewrite the filename the compiler sees. Scoped-CSS class hashes derive from it—see below.                            |
 | `warningFilter`   | `(warning) => boolean`               | all warnings printed         | Return `false` to suppress a warning, e.g. `(w) => !w.code.startsWith('a11y')`. Components and rune modules.         |
-| `compilerOptions` | `Pick<CompileOptions, …>`            | —                            | Pass-through for `customElement`, `runes`, and `namespace`. Components only — `compileModule` accepts none.          |
+| `compilerOptions` | `Pick<CompileOptions, …>`            | —                            | Pass-through for `customElement`, `runes`, and `namespace`. Components only—`compileModule` accepts none.            |
 
-When `generate` is not set, the side comes from the dev server's per-request hint, then from the build target (`browser` → client, `node`/`bun` → server), and finally falls back to `server` — the runtime `Bun.plugin()` builder exposes no build config to infer from.
+When `generate` is not set, the side comes from the dev server's per-request hint, then from the build target (`browser` → client, `node`/`bun` → server), and finally falls back to `server`—the runtime `Bun.plugin()` builder exposes no build config to infer from.
 
 Bun only applies Svelte's `development` export condition when `NODE_ENV` is exactly `'development'`, and there's no `bunfig.toml` key that sets it. The `bun --conditions development` flag changes module resolution only—it does not set `NODE_ENV`—so on its own it gives you Svelte's development runtime while your components still compile without dev-mode checks. If you need dev-mode internals under some other `NODE_ENV`, pair the flag with an explicit `sveltePlugin({ dev: true })`, or just set `NODE_ENV=development` and get both sides from one switch.
 
 ### `compileFilename`
 
-Svelte derives scoped-CSS class names (`svelte-abc123`) from the compiler `filename`. If the same component is compiled once from a workspace checkout path and once from its published `node_modules` path — a common setup when a component library's server bundle and client bundle resolve the source differently — the class hashes disagree and hydration produces unstyled markup. `compileFilename` lets you normalize both paths to a single canonical string so both compilations agree.
+Svelte derives scoped-CSS class names (`svelte-abc123`) from the compiler `filename`. If the same component is compiled once from a workspace checkout path and once from its published `node_modules` path—a common setup when a component library's server bundle and client bundle resolve the source differently—the class hashes disagree and hydration produces unstyled markup. `compileFilename` lets you normalize both paths to a single canonical string so both compilations agree.
 
 ### CSS modes
 
-In `'external'` mode (the default) the plugin registers each component's extracted CSS as a virtual `bun-svelte:*.css` module and appends an import to the compiled JS; Bun bundles it into a real `.css` artifact (and the dev server serves it as a stylesheet). Server compiles never emit CSS imports — SSR output has nowhere to load a stylesheet from. Under the runtime `Bun.plugin()` loader, which supports no CSS loader at all, external mode degrades to `'none'` automatically.
+In `'external'` mode (the default) the plugin registers each component's extracted CSS as a virtual `bun-svelte:*.css` module and appends an import to the compiled JS; Bun bundles it into a real `.css` artifact (and the dev server serves it as a stylesheet). Server compiles never emit CSS imports—SSR output has nowhere to load a stylesheet from. Under the runtime `Bun.plugin()` loader, which supports no CSS loader at all, external mode degrades to `'none'` automatically.
 
-In `'injected'` mode the compiled JS delivers its own styles — appended to the document at runtime on the client, and collected into `render()`'s `head` during SSR. This makes `'injected'` the right choice for SSR-only deployments that never ship a client stylesheet.
+In `'injected'` mode the compiled JS delivers its own styles—appended to the document at runtime on the client, and collected into `render()`'s `head` during SSR. This makes `'injected'` the right choice for SSR-only deployments that never ship a client stylesheet.
 
-In `'none'` mode components compile with scoped class names but the CSS is discarded entirely — for component libraries whose stylesheets are built and shipped out of band (per-component CSS sidecars, a design-system cascade), where an auto-emitted stylesheet would duplicate rules.
+In `'none'` mode components compile with scoped class names but the CSS is discarded entirely—for component libraries whose stylesheets are built and shipped out of band (per-component CSS sidecars, a design-system cascade), where an auto-emitted stylesheet would duplicate rules.
 
-One special case: with `compilerOptions: { customElement: true }`, Svelte always inlines styles into the element's shadow DOM and the `css` option is bypassed — no external CSS ever exists for custom elements.
+One special case: with `compilerOptions: { customElement: true }`, Svelte always inlines styles into the element's shadow DOM and the `css` option is bypassed—no external CSS ever exists for custom elements.
 
 ### The `svelte` export condition
 
-Packages that ship raw component source behind a `"svelte"` condition in their `exports` map (the convention `@sveltejs/package` produces) resolve to that source when you pass the condition to your build — the plugin then compiles it with your options:
+Packages that ship raw component source behind a `"svelte"` condition in their `exports` map (the convention `@sveltejs/package` produces) resolve to that source when you pass the condition to your build—the plugin then compiles it with your options:
 
 ```ts
 await Bun.build({
