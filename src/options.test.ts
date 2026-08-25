@@ -73,6 +73,40 @@ describe('resolveDev', () => {
       }
     }
   });
+
+  // Bun only resolves Svelte's esm-env `development` export condition when
+  // NODE_ENV is exactly 'development'. If `dev` defaulted to anything else in
+  // these branches, the compiler would emit dev-mode `push_element()` calls
+  // while the runtime resolves its production build, crashing every SSR
+  // render with `TypeError: undefined is not an object (evaluating
+  // 'context.function[FILENAME]')`. See GitHub issue #4.
+  it('defaults to false when NODE_ENV is unset, so compiler output matches the runtime Bun resolves', () => {
+    const original = process.env['NODE_ENV'];
+    try {
+      delete process.env['NODE_ENV'];
+      expect(resolveDev({})).toBe(false);
+    } finally {
+      if (original === undefined) {
+        delete process.env['NODE_ENV'];
+      } else {
+        process.env['NODE_ENV'] = original;
+      }
+    }
+  });
+
+  it("defaults to false when NODE_ENV is 'test', so compiler output matches the runtime Bun resolves", () => {
+    const original = process.env['NODE_ENV'];
+    try {
+      process.env['NODE_ENV'] = 'test';
+      expect(resolveDev({})).toBe(false);
+    } finally {
+      if (original === undefined) {
+        delete process.env['NODE_ENV'];
+      } else {
+        process.env['NODE_ENV'] = original;
+      }
+    }
+  });
 });
 
 describe('resolveSide', () => {

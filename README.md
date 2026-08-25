@@ -104,17 +104,19 @@ plugin(sveltePlugin({ generate: 'client' }));
 
 ## Options
 
-| Option            | Type                                 | Default                     | What it does                                                                                                         |
-| ----------------- | ------------------------------------ | --------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `generate`        | `'client' \| 'server'`               | inferred (see below)        | Which side to compile for.                                                                                           |
-| `dev`             | `boolean`                            | `NODE_ENV !== 'production'` | Dev-mode compiler checks and richer runtime errors.                                                                  |
-| `css`             | `'injected' \| 'external' \| 'none'` | `'external'`                | `'external'` extracts CSS into a real stylesheet asset; `'injected'` delivers styles from JS; `'none'` discards CSS. |
-| `hmr`             | `boolean`                            | dev-server hint, else `dev` | Whether the compiler emits hot-reload glue. Never applied to server compiles.                                        |
-| `compileFilename` | `(path: string) => string`           | identity                    | Rewrite the filename the compiler sees. Scoped-CSS class hashes derive from it — see below.                          |
-| `warningFilter`   | `(warning) => boolean`               | all warnings printed        | Return `false` to suppress a warning, e.g. `(w) => !w.code.startsWith('a11y')`. Components and rune modules.         |
-| `compilerOptions` | `Pick<CompileOptions, …>`            | —                           | Pass-through for `customElement`, `runes`, and `namespace`. Components only — `compileModule` accepts none.          |
+| Option            | Type                                 | Default                      | What it does                                                                                                         |
+| ----------------- | ------------------------------------ | ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `generate`        | `'client' \| 'server'`               | inferred (see below)         | Which side to compile for.                                                                                           |
+| `dev`             | `boolean`                            | `NODE_ENV === 'development'` | Dev-mode compiler checks and richer runtime errors.                                                                  |
+| `css`             | `'injected' \| 'external' \| 'none'` | `'external'`                 | `'external'` extracts CSS into a real stylesheet asset; `'injected'` delivers styles from JS; `'none'` discards CSS. |
+| `hmr`             | `boolean`                            | dev-server hint, else `dev`  | Whether the compiler emits hot-reload glue. Never applied to server compiles.                                        |
+| `compileFilename` | `(path: string) => string`           | identity                     | Rewrite the filename the compiler sees. Scoped-CSS class hashes derive from it — see below.                          |
+| `warningFilter`   | `(warning) => boolean`               | all warnings printed         | Return `false` to suppress a warning, e.g. `(w) => !w.code.startsWith('a11y')`. Components and rune modules.         |
+| `compilerOptions` | `Pick<CompileOptions, …>`            | —                            | Pass-through for `customElement`, `runes`, and `namespace`. Components only — `compileModule` accepts none.          |
 
 When `generate` is not set, the side comes from the dev server's per-request hint, then from the build target (`browser` → client, `node`/`bun` → server), and finally falls back to `server` — the runtime `Bun.plugin()` builder exposes no build config to infer from.
+
+Bun only applies Svelte's `development` export condition when `NODE_ENV` is exactly `'development'`, and there's no `bunfig.toml` key that sets it. If you need dev-mode Svelte internals under some other `NODE_ENV`, pass `bun --conditions development` on the command line.
 
 ### `compileFilename`
 
