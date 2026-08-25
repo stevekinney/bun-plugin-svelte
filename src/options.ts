@@ -29,7 +29,12 @@ export type DevServerHints = {
 export type SvelteOptions = {
   /** Force client or server codegen. Overrides dev-server hints and build-target inference. */
   generate?: GenerationSide;
-  /** Enable dev-mode compiler checks and richer errors. Defaults to `NODE_ENV !== 'production'`. */
+  /**
+   * Enable dev-mode compiler checks and richer errors. Defaults to
+   * `NODE_ENV === 'development'` — Bun only resolves Svelte's `development`
+   * export condition under that exact value, so a looser default would make
+   * the compiler and runtime disagree and crash SSR.
+   */
   dev?: boolean;
   /** CSS delivery mode. Defaults to `'external'`. */
   css?: CssMode;
@@ -98,9 +103,19 @@ export function validateOptions(options: unknown): asserts options is SvelteOpti
   }
 }
 
-/** Resolve the effective dev flag: the explicit option wins, else `NODE_ENV`. */
+/**
+ * Resolve the effective dev flag: the explicit option wins, else `NODE_ENV`.
+ *
+ * Defaults to `NODE_ENV === 'development'` rather than `NODE_ENV !==
+ * 'production'`. Bun only resolves Svelte's `esm-env` `development` export
+ * condition when `NODE_ENV` is exactly `'development'`; any looser default
+ * would compile components in dev mode while the runtime resolves its
+ * production build, crashing SSR (`TypeError: undefined is not an object
+ * (evaluating 'context.function[FILENAME]')`) whenever `NODE_ENV` is unset or
+ * something else, such as `'test'`.
+ */
 export function resolveDev(options: SvelteOptions): boolean {
-  return options.dev ?? process.env['NODE_ENV'] !== 'production';
+  return options.dev ?? process.env['NODE_ENV'] === 'development';
 }
 
 /**
