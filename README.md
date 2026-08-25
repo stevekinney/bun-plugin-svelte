@@ -90,6 +90,22 @@ const { head, body } = render(Application);
 
 Client and server are two independent compilations of the same source—bundle each side separately, exactly as Vite and SvelteKit do.
 
+### Hydrating server-rendered markup
+
+`render()` alone only gets you a string. To make the page interactive without throwing away the markup you just rendered, the client entry has to call `hydrate()` from `svelte`, not `mount()`. `mount()` does not know or care whether `target` already has server-rendered children—it always builds a fresh DOM tree and inserts it, so the SSR markup is not replaced, it is duplicated: two copies of the component sit in the DOM side by side, the second one is the only one wired up to state, and there is no error to tell you it happened.
+
+```ts
+// client entry
+import { hydrate } from 'svelte';
+
+import Application from './application.svelte';
+import { props } from './props.ts';
+
+hydrate(Application, { target: document.getElementById('root')!, props });
+```
+
+Pass the server and client the same `props` value—a mismatch between what `render()` used and what `hydrate()` receives is the most common way to get a hydration warning, since the client re-derives its initial state from `props` rather than reading it back out of the DOM. A runnable version of this round trip—a server build with `sveltePlugin({ generate: 'server' })`, a client build with `sveltePlugin({ generate: 'client' })`, and a shared props module imported by both—lives in [`example/hydrate.ts`](./example/hydrate.ts).
+
 ## Runtime (`Bun.plugin`)
 
 Register the plugin at runtime—for example in a `bun test` preload—and import `.svelte` files directly:
@@ -132,6 +148,10 @@ In `'none'` mode components compile with scoped class names but the CSS is disca
 
 One special case: with `compilerOptions: { customElement: true }`, Svelte always inlines styles into the element's shadow DOM and the `css` option is bypassed—no external CSS ever exists for custom elements.
 
+For an app that mixes hydrated pages with pages that ship no client JavaScript at all, the thing to know is that a _server_ compile in `'external'` mode emits no CSS—there is no client bundle for those pages to pull a stylesheet into—so rendering with the server build alone leaves zero-JS pages unstyled. That is a limitation of using only the server compilation, not of `'external'` itself: a client-target build still emits the stylesheet as its own `.css` artifact, so you can run one purely to extract that file, drop the JavaScript it produces, and `<link>` the stylesheet from your SSR HTML. That keeps CSS cacheable and separately versioned, at the cost of a second build step and having to wire the asset up yourself.
+
+`'injected'` avoids that wiring: `render()` computes the `<style>` tag on the server and puts it directly in `head`, so the CSS arrives as static HTML with no client JS required to run, and the same mode appends styles at runtime for the hydrated pages. That makes `'injected'` the path of least resistance for a mixed app, and the extracted-stylesheet route above the one to reach for when you want the caching. `'none'` plus a stylesheet built out of band is for when you don't want the plugin managing delivery at all, such as a component library whose consumers already own their CSS pipeline.
+
 ### The `svelte` export condition
 
 Packages that ship raw component source behind a `"svelte"` condition in their `exports` map (the convention `@sveltejs/package` produces) resolve to that source when you pass the condition to your build—the plugin then compiles it with your options:
@@ -146,6 +166,8 @@ await Bun.build({
 ```
 
 You must pass `conditions: ['svelte']` yourself: a plugin cannot add it for you, because Bun snapshots the build config before plugins run (and the dev server and runtime loader expose no conditions configuration at all).
+
+That condition applies to whichever build passes it—typically the client build only, since a server build usually wants the library's prebuilt `node` output rather than its raw source. When a dependency ships both—a `svelte` condition pointing at source and a `node` condition pointing at a prebuilt server bundle—the client compiles the library from source while the server imports the already-compiled bundle: two different inputs for the same component. Without scoped styles that's harmless. With them, it is exactly the mismatch [`compileFilename`](#compilefilename) exists to fix: the prebuilt server bundle already has its class hashes baked in from whatever filename compiled it, and `compileFilename` on your client build is the only side you can still adjust—rewrite the client's filename to match the one the prebuilt bundle was compiled with, and the two agree.
 
 ### TypeScript and `.svelte` imports
 

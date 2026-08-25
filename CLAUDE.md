@@ -11,6 +11,7 @@ bun run dev               # Run the test suite in watch mode
 bun run build             # Build for production (outputs to dist/)
 bun example/server.ts     # Run the example app on Bun's fullstack dev server
 bun example/server-side-render.ts # SSR smoke test via the runtime plugin
+bun example/hydrate.ts    # Full SSR + hydrate() round trip served over Bun.serve
 ```
 
 ### Testing
