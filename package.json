@@ -1,6 +1,6 @@
 {
   "name": "@lostgradient/bun-plugin-svelte",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Bun bundler and runtime plugin for Svelte 5 components and rune modules — client and SSR compilation, CSS modes, and dev-server HMR.",
   "keywords": [
     "bun",
