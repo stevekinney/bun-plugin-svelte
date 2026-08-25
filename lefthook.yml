@@ -12,17 +12,24 @@ pre-commit:
   jobs:
     - name: format-staged
       run: bun run prettier --write {staged_files}
-      glob: "**/*.{ts,tsx,js,jsx,json,md}"
+      glob: '**/*.{ts,tsx,js,jsx,json,md}'
       stage_fixed: true
     - name: lint-fix
       run: bun run oxlint --fix {staged_files}
-      glob: "**/*.{ts,tsx,js,jsx}"
+      glob: '**/*.{ts,tsx,js,jsx}'
+      # Mirror .oxlintrc.json's ignorePatterns: oxlint treats a file list that
+      # resolves to nothing but ignored paths as an error ("No files found to
+      # lint") rather than a no-op, so a commit touching only example/ or
+      # test/fixtures/ files would otherwise fail this job.
+      exclude:
+        - 'example/**'
+        - 'test/fixtures/**'
       stage_fixed: true
     - name: conflict-marker-check
       run: bun scripts/hooks/conflict-marker-check.ts
     - name: package-lock-check
       run: bun scripts/hooks/package-lock-check.ts
-      glob: "{package.json,bun.lock}"
+      glob: '{package.json,bun.lock}'
 
 pre-push:
   # CI already runs the full gate; don't duplicate it on pushes from CI.
